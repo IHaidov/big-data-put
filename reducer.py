@@ -1,8 +1,9 @@
-#!/usr/bin/env python2
+#!/usr/bin/env python3
 
 import sys
 
 current_key = None
+developer_year = None
 total_rating = 0.0
 total_rating_count = 0
 app_count = 0
