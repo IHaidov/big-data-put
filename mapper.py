@@ -20,7 +20,8 @@ for values in reader:
     try:
         rating = float(rating)
         rating_count = int(rating_count)
-        year = released_date.split(" ")[0].split("-")[0]
+        year = released_date.split(",")[1].strip()
+
     except ValueError:
         continue
 

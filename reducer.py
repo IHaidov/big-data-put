@@ -7,7 +7,7 @@ total_rating = 0.0
 total_rating_count = 0
 app_count = 0
 
-print("dev_id year total_rating total_rating_count app_count")
+#print("dev_id year total_rating total_rating_count app_count")
 for line in sys.stdin:
     line = line.strip()
     developer_year, rating, rating_count, app = line.split("\t")
