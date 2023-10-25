@@ -11,8 +11,8 @@ for values in reader:
 
     developer_id = values[-1]
     rating = values[3]  
-    rating_count = values[4].replace(",", "")  
-    released_date = values[14]
+    rating_count = values[4]
+    released_date = values[13]
 
     if not rating or not rating_count or not released_date:
         continue
