@@ -2,8 +2,9 @@
 
 import sys
 import csv
+csv.field_size_limit(sys.maxsize)
 
-reader = csv.reader(sys.stdin)
+reader = csv.reader(sys.stdin,delimiter = "\x01")
 
 for values in reader:
     if len(values) < 16:
@@ -13,8 +14,9 @@ for values in reader:
     rating = values[3]  
     rating_count = values[4]
     released_date = values[13]
-
-    if not rating or not rating_count or not released_date:
+    #print(">>>%s %s %s %s"%(developer_id, rating, rating_count, released_date))
+    if rating == "null" or rating_count == "null" or released_date == "null":
+        #print("<< %s"%(developer_id))
         continue
 
     try:
