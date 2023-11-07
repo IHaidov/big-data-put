@@ -21,58 +21,40 @@ ROW FORMAT DELIMITED
 FIELDS TERMINATED BY '\001'
 LOCATION '${input_dir4}';
 
--- Aggregate ratings for developers before ranking
-CREATE TEMPORARY TABLE IF NOT EXISTS developer_aggregated AS
-SELECT
-  developer_id,
-  year,
-  SUM(sum_rates) AS total_sum_rates,
-  SUM(count_rates) AS total_count_rates,
-  SUM(count_apps) AS total_count_apps
-FROM developer_stats
-GROUP BY developer_id, year;
-
--- Temporary table to store the intermediate results with ranking
-CREATE TEMPORARY TABLE IF NOT EXISTS fin_orc_applications AS
-SELECT
-  developer_name,
-  da.year,
-  da.avg_rate,
-  da.total_count_apps,
-  da.total_count_rates
-FROM (
-  SELECT
-    ds.developer_id,
-    ds.year,
-    di.developer_name,
-    ds.total_sum_rates / ds.total_count_rates AS avg_rate,
-    ds.total_count_apps,
-    ds.total_count_rates,
-    DENSE_RANK() OVER (PARTITION BY ds.year ORDER BY ds.total_sum_rates / ds.total_count_rates DESC, ds.total_count_rates DESC) as rank
-  FROM developer_aggregated ds
-  JOIN developer_info di ON (cast(ds.developer_id as STRING) = cast(di.app_id as STRING))
-) da
-WHERE da.rank <= 3;
-
-
--- Export the final results to JSON format in the specified output directory
--- Including SERDEPROPERTIES to specify JSON attribute names
-INSERT OVERWRITE DIRECTORY '${output_dir6}'
-ROW FORMAT SERDE  'org.apache.hadoop.hive.serde2.JsonSerDe'
-WITH SERDEPROPERTIES (
-  "mapping.developer_name" = "developer_name",
-  "mapping.year" = "year",
-  "mapping.avg_rate" = "avg_rate",
-  "mapping.count_apps" = "total_count_apps",
-  "mapping.count_rates" = "total_count_rates"
+-- External table to store the final results in JSON format
+CREATE EXTERNAL TABLE IF NOT EXISTS json_res (
+    developer_name STRING,
+    year INT,
+    avg_rate FLOAT,
+    count_apps INT,
+    count_rates INT
 )
-SELECT
-  developer_name,
-  year,
-  avg_rate,
-  total_count_apps,
-  total_count_rates
-FROM fin_orc_applications
-ORDER BY year ASC, avg_rate DESC, total_count_rates DESC;
+ROW FORMAT SERDE 'org.apache.hadoop.hive.serde2.JsonSerDe'
+STORED AS TEXTFILE
+LOCATION '${output_dir6}';
 
-
+-- Insert data into json_res with the results
+INSERT OVERWRITE TABLE json_res
+SELECT 
+    grouped.developer_name,
+    grouped.year,
+    grouped.avg_rate, 
+    grouped.count_apps,
+    grouped.count_rates
+FROM (
+    SELECT
+        di.developer_name,
+        ds.year,
+        CAST(SUM(ds.sum_rates) AS FLOAT) / SUM(ds.count_rates) AS avg_rate,
+        SUM(ds.count_apps) AS count_apps,
+        SUM(ds.count_rates) AS count_rates,
+        ROW_NUMBER() OVER (
+            PARTITION BY ds.year
+            ORDER BY CAST(SUM(ds.sum_rates) AS FLOAT) / SUM(ds.count_rates) DESC
+        ) AS ord
+    FROM developer_stats ds
+    JOIN developer_info di ON di.app_id = ds.developer_id
+    GROUP BY di.developer_name, ds.year
+) grouped
+WHERE grouped.ord <= 3
+ORDER BY grouped.year ASC, grouped.avg_rate DESC, grouped.count_rates DESC;
